@@ -73,7 +73,7 @@ The instructions for the JUnitRunner can be found [here](https://cucumber.io/doc
 
 This module needs further documentation. The following examples show supported features:
 
-* [examples/clojure_cukes](https://github.com/cucumber/cucumber-jvm/tree/master/examples/clojure_cukes)
-* [clojure/src/test/resources/cucumber/runtime/clojure](https://github.com/cucumber/cucumber-jvm/tree/master/clojure/src/test/resources/cucumber/runtime/clojure).
+* [examples](https://github.com/cucumber/cucumber-jvm-clojure/tree/master/examples/)
+* [clojure/src/test/resources/cucumber/runtime/clojure](https://github.com/cucumber/cucumber-jvm-clojure/tree/master/clojure/src/test/resources/cucumber/runtime/clojure).
 
 Contributions are most welcome.
