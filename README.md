@@ -63,7 +63,7 @@ There are several ways to run scenarios with Cucumber-Clojure:
 
 ```
 
-You then need to add `[lein-cucumber "1.0.2"]` to `:plugins` in your project.clj. This allows you to run all Cucumber features with `lein cucumber`
+You then need to add `[com.siili/lein-cucumber "1.0.7"]` to `:plugins` in your project.clj. This allows you to run all Cucumber features with `lein cucumber`
 
 ### JUnitRunner
 
