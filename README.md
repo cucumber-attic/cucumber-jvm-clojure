@@ -43,6 +43,21 @@ In this case, the DataTable is flattened to a vector of hashes
 
 before invoking the step definition.
 
+## Installation
+
+### Maven
+To use cucumber-jvm-clojure in your project, add the following dependency to your `pom.xml`:
+
+```xml
+<dependency>
+    <groupId>io.cucumber</groupId>
+    <artifactId>cucumber-clojure</artifactId>
+    <version>{{% version "clojure" %}}</version>
+    <scope>test</scope>
+</dependency>
+```
+
+
 ## Running
 
 There are several ways to run scenarios with Cucumber-Clojure:
