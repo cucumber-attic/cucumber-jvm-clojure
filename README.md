@@ -1,5 +1,7 @@
 # Cucumber-Clojure
 
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.cucumber/cucumber-clojure/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.cucumber/cucumber-clojure)
+
 Cucumber-Clojure is a Cucumber implementation for [Clojure](http://www.clojure.org/).
 
 This document is the reference for features that are specific to Cucumber-Clojure.
@@ -52,7 +54,7 @@ To use cucumber-jvm-clojure in your project, add the following dependency to you
 <dependency>
     <groupId>io.cucumber</groupId>
     <artifactId>cucumber-clojure</artifactId>
-    <version>{{% version "clojure" %}}</version>
+    <version>2.0.1</version>
     <scope>test</scope>
 </dependency>
 ```
