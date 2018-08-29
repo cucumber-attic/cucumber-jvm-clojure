@@ -15,8 +15,10 @@
               :init init
               :state state))
 
-(def glue (atom nil))
 (def world (atom nil))
+(defonce step-definitions (atom []))
+(defonce before-hooks (atom []))
+(defonce after-hooks (atom []))
 
 (defn clojure-snippet []
   (reify
@@ -37,73 +39,39 @@
 
 (def snippet-generator (SnippetGenerator. (clojure-snippet)))
 
-(defn load-script [path]
-  (try
-    #_(RT/load (str (.replaceAll path ".clj$" "")) true)
-    (load-file path)
-    (catch Throwable t
-      (throw (CucumberException. t)))))
+(defn- location-str [{:keys [file line]}]
+  (str file ":" line))
 
 (defn- -init [resource-loader]
   [[] (atom {:resource-loader resource-loader})])
 
 (defn -loadGlue [cljb a-glue glue-paths]
-  (println "Cucumber: -loadGlue")
-  (reset! glue a-glue)
-  (doseq [path glue-paths
-          resource (.resources (:resource-loader @(.state cljb)) path ".clj")]
-    (binding [*ns* (create-ns 'cucumber.runtime.clj)]
-      (load-script (.getPath resource)))))
-
-(defn- -buildWorld [cljb]
-  (println "Cucumber: -buildWorld"))
-
-(defn- -disposeWorld [cljb]
-  (reset! world nil)
-  (println "Cucumber: -disposeWorld"))
-
-(defn- -getSnippet [cljb step keyword _]
-  (.getSnippet snippet-generator step keyword nil))
-
-(defn- -setUnreportedStepExecutor [cljb executor]
-  "executor")
-
-(defn- location-str [{:keys [file line]}]
-  (str file ":" line))
-
-(defn add-step-definition [pattern fun location]
-  (println "Cucumber: add-step-definition")
-  (if @glue
-    (.addStepDefinition
-     @glue
-     (reify
-       StepDefinition
-       (matchedArguments [_ step]
-         (.argumentsFrom (JdkPatternArgumentMatcher. pattern)
-                         (.getText step)))
-       (getLocation [_ detail]
-         (location-str location))
-       (getParameterCount [_]
-         nil)
-       (getParameterType [_ n argumentType]
-         nil)
-       (execute [_ locale args]
-         (reset! world (apply fun @world args)))
-       (isDefinedAt [_ stack-trace-element]
-         (and (= (.getLineNumber stack-trace-element)
-                 (:line location))
-              (= (.getFileName stack-trace-element)
-                 (:file location))))
-       (getPattern [_]
-         (str pattern))))))
-
-(defmulti add-hook-definition (fn [t & _] t))
-
-(defmethod add-hook-definition :before [_ tag-expression hook-fun location]
-  (if @glue
+  ;; register the step definitions
+  (doseq [{:keys [pattern fun location]} @step-definitions]
+    (.addStepDefinition a-glue
+                        (reify
+                          StepDefinition
+                          (matchedArguments [_ step]
+                            (.argumentsFrom (JdkPatternArgumentMatcher. pattern)
+                                            (.getText step)))
+                          (getLocation [_ detail]
+                            (location-str location))
+                          (getParameterCount [_] nil)
+                          (getParameterType [_ n argumentType] nil)
+                          (execute [_ locale args]
+                            (reset! world (apply fun @world args)))
+                          (isDefinedAt [_ stack-trace-element]
+                            (and (= (.getLineNumber stack-trace-element)
+                                    (:line location))
+                                 (= (.getFileName stack-trace-element)
+                                    (:file location))))
+                          (getPattern [_]
+                            (str pattern)))))
+  ;; register the before hooks
+  (doseq [{:keys [tag-expression hook-fun location]} @before-hooks]
     (let [tp (TagPredicate. tag-expression)]
       (.addBeforeHook
-       @glue
+       a-glue
        (reify
          HookDefinition
          (getLocation [_ detail?]
@@ -113,17 +81,16 @@
          (matches [hd tags]
            (.apply tp tags))
          (getOrder [hd] 0)
-         (isScenarioScoped [hd] false))))))
-
-(defmethod add-hook-definition :after [_ tag-expression hook-fun location]
-  (if @glue
+         (isScenarioScoped [hd] false)))))
+  ;; register the after hooks
+  (doseq [{:keys [tag-expression hook-fun location]} @after-hooks]
     (let [tp (TagPredicate. tag-expression)
           max-parameter-count (->> hook-fun class .getDeclaredMethods
                                    (filter #(= "invoke" (.getName %)))
                                    (map #(count (.getParameterTypes %)))
                                    (apply max))]
       (.addAfterHook
-       @glue
+       a-glue
        (reify
          HookDefinition
          (getLocation [_ detail?]
@@ -136,6 +103,28 @@
            (.apply tp tags))
          (getOrder [hd] 0)
          (isScenarioScoped [hd] false))))))
+
+(defn- -buildWorld [cljb])
+
+(defn- -disposeWorld [cljb]
+  (reset! world nil))
+
+(defn- -getSnippet [cljb step keyword _]
+  (.getSnippet snippet-generator step keyword nil))
+
+(defn- -setUnreportedStepExecutor [cljb executor]
+  "executor")
+
+(defn add-step-definition [pattern fun location]
+  (swap! step-definitions conj {:pattern pattern :fun fun :location location}))
+
+(defmulti add-hook-definition (fn [t & _] t))
+
+(defmethod add-hook-definition :before [_ tag-expression hook-fun location]
+  (swap! before-hooks conj {:tag-expression tag-expression :hook-fun hook-fun :location location}))
+
+(defmethod add-hook-definition :after [_ tag-expression hook-fun location]
+  (swap! after-hooks conj {:tag-expression tag-expression :hook-fun hook-fun :location location}))
 
 (defmacro step-macros [& names]
   (cons 'do
