@@ -16,6 +16,7 @@
               :state state))
 
 (def glue (atom nil))
+(def world (atom nil))
 
 (defn clojure-snippet []
   (reify
@@ -38,7 +39,8 @@
 
 (defn load-script [path]
   (try
-    (RT/load (str (.replaceAll path ".clj$" "")) true)
+    #_(RT/load (str (.replaceAll path ".clj$" "")) true)
+    (load-file path)
     (catch Throwable t
       (throw (CucumberException. t)))))
 
@@ -46,15 +48,19 @@
   [[] (atom {:resource-loader resource-loader})])
 
 (defn -loadGlue [cljb a-glue glue-paths]
+  (println "Cucumber: -loadGlue")
   (reset! glue a-glue)
   (doseq [path glue-paths
           resource (.resources (:resource-loader @(.state cljb)) path ".clj")]
     (binding [*ns* (create-ns 'cucumber.runtime.clj)]
       (load-script (.getPath resource)))))
 
-(defn- -buildWorld [cljb])
+(defn- -buildWorld [cljb]
+  (println "Cucumber: -buildWorld"))
 
-(defn- -disposeWorld [cljb])
+(defn- -disposeWorld [cljb]
+  (reset! world nil)
+  (println "Cucumber: -disposeWorld"))
 
 (defn- -getSnippet [cljb step keyword _]
   (.getSnippet snippet-generator step keyword nil))
@@ -66,66 +72,70 @@
   (str file ":" line))
 
 (defn add-step-definition [pattern fun location]
-  (.addStepDefinition
-   @glue
-   (reify
-     StepDefinition
-     (matchedArguments [_ step]
-       (.argumentsFrom (JdkPatternArgumentMatcher. pattern)
-                       (.getText step)))
-     (getLocation [_ detail]
-       (location-str location))
-     (getParameterCount [_]
-       nil)
-     (getParameterType [_ n argumentType]
-       nil)
-     (execute [_ locale args]
-       (apply fun args))
-     (isDefinedAt [_ stack-trace-element]
-       (and (= (.getLineNumber stack-trace-element)
-               (:line location))
-            (= (.getFileName stack-trace-element)
-               (:file location))))
-     (getPattern [_]
-       (str pattern)))))
+  (println "Cucumber: add-step-definition")
+  (if @glue
+    (.addStepDefinition
+     @glue
+     (reify
+       StepDefinition
+       (matchedArguments [_ step]
+         (.argumentsFrom (JdkPatternArgumentMatcher. pattern)
+                         (.getText step)))
+       (getLocation [_ detail]
+         (location-str location))
+       (getParameterCount [_]
+         nil)
+       (getParameterType [_ n argumentType]
+         nil)
+       (execute [_ locale args]
+         (reset! world (apply fun @world args)))
+       (isDefinedAt [_ stack-trace-element]
+         (and (= (.getLineNumber stack-trace-element)
+                 (:line location))
+              (= (.getFileName stack-trace-element)
+                 (:file location))))
+       (getPattern [_]
+         (str pattern))))))
 
 (defmulti add-hook-definition (fn [t & _] t))
 
 (defmethod add-hook-definition :before [_ tag-expression hook-fun location]
-  (let [tp (TagPredicate. tag-expression)]
-    (.addBeforeHook
-     @glue
-     (reify
-       HookDefinition
-       (getLocation [_ detail?]
-         (location-str location))
-       (execute [hd scenario-result]
-         (hook-fun))
-       (matches [hd tags]
-         (.apply tp tags))
-       (getOrder [hd] 0)
-       (isScenarioScoped [hd] false)))))
+  (if @glue
+    (let [tp (TagPredicate. tag-expression)]
+      (.addBeforeHook
+       @glue
+       (reify
+         HookDefinition
+         (getLocation [_ detail?]
+           (location-str location))
+         (execute [hd scenario-result]
+           (hook-fun))
+         (matches [hd tags]
+           (.apply tp tags))
+         (getOrder [hd] 0)
+         (isScenarioScoped [hd] false))))))
 
 (defmethod add-hook-definition :after [_ tag-expression hook-fun location]
-  (let [tp (TagPredicate. tag-expression)
-        max-parameter-count (->> hook-fun class .getDeclaredMethods
-                                 (filter #(= "invoke" (.getName %)))
-                                 (map #(count (.getParameterTypes %)))
-                                 (apply max))]
-    (.addAfterHook
-     @glue
-     (reify
-       HookDefinition
-       (getLocation [_ detail?]
-         (location-str location))
-       (execute [hd scenario-result]
-         (if (zero? max-parameter-count)
-           (hook-fun)
-           (hook-fun scenario-result)))
-       (matches [hd tags]
-         (.apply tp tags))
-       (getOrder [hd] 0)
-       (isScenarioScoped [hd] false)))))
+  (if @glue
+    (let [tp (TagPredicate. tag-expression)
+          max-parameter-count (->> hook-fun class .getDeclaredMethods
+                                   (filter #(= "invoke" (.getName %)))
+                                   (map #(count (.getParameterTypes %)))
+                                   (apply max))]
+      (.addAfterHook
+       @glue
+       (reify
+         HookDefinition
+         (getLocation [_ detail?]
+           (location-str location))
+         (execute [hd scenario-result]
+           (if (zero? max-parameter-count)
+             (hook-fun)
+             (hook-fun scenario-result)))
+         (matches [hd tags]
+           (.apply tp tags))
+         (getOrder [hd] 0)
+         (isScenarioScoped [hd] false))))))
 
 (defmacro step-macros [& names]
   (cons 'do
